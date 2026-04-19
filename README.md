@@ -96,4 +96,6 @@ scrape_configs:
 
 ## License
 
-MIT
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+
+Derived from [gekka](https://github.com/sopranoworks/gekka) by Sopranoworks, Osamu Takahashi.
