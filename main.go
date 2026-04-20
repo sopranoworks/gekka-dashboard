@@ -24,7 +24,7 @@ import (
 	gekka "github.com/sopranoworks/gekka"
 	gcluster "github.com/sopranoworks/gekka/cluster"
 	gekkaotel "github.com/sopranoworks/gekka-extensions-telemetry-otel"
-	"github.com/sopranoworks/gekka-metrics/notify"
+	"github.com/sopranoworks/gekka-dashboard/notify"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"

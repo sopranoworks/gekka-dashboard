@@ -1,1 +1,4 @@
 gekka-metrics
+node_modules/
+static/
+gekka-dashboard
