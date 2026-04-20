@@ -24,6 +24,7 @@ import (
 	gekka "github.com/sopranoworks/gekka"
 	gcluster "github.com/sopranoworks/gekka/cluster"
 	gekkaotel "github.com/sopranoworks/gekka-extensions-telemetry-otel"
+	"github.com/sopranoworks/gekka-metrics/notify"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -385,6 +386,24 @@ func main() {
 			return nil
 		}),
 	)
+
+	// ── Start notification engine ─────────────────────────────────────────────
+
+	notifyCfg, notifyErr := notify.ParseNotifyConfigFromFile(*flagConfig)
+	if notifyErr != nil {
+		slog.Warn("notify: config parse error, notifications disabled", "err", notifyErr)
+	}
+
+	if notifyCfg != nil && len(notifyCfg.Rules) > 0 {
+		channels := notify.BuildChannels(notifyCfg)
+		eng := notify.NewEngine(notifyCfg.Rules, channels)
+
+		sub := cm.SubscribeChannel()
+		go eng.Run(ctx)
+		go notify.BridgeClusterEvents(ctx, sub, cm, eng)
+
+		slog.Info("notify: engine started", "rules", len(notifyCfg.Rules), "channels", len(channels))
+	}
 
 	// ── Start TUI ─────────────────────────────────────────────────────────────
 
