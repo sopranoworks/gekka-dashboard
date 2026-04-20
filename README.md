@@ -1,98 +1,78 @@
-# gekka-metrics
+# gekka-dashboard
 
-A full [gekka](https://github.com/sopranoworks/gekka) cluster node that joins
-the ring with the `metrics-exporter` role and exports cluster metrics via the
-OpenTelemetry Protocol (OTLP/HTTP).
+Web-based operational console for [gekka](https://github.com/sopranoworks/gekka) clusters.
+Provides real-time monitoring, management actions, and configurable notifications.
 
-Because `gekka-metrics` is a real cluster node it sees membership changes in
-real time via gossip, giving sub-second lag between a node going unreachable
-and the metric updating.
+Derived from [gekka-metrics](https://github.com/sopranoworks/gekka-metrics) — includes
+all metrics export and notification capabilities.
 
 ## Installation
 
 ```bash
-go install github.com/sopranoworks/gekka-metrics@latest
+go install github.com/sopranoworks/gekka-dashboard@latest
+```
+
+Or build from source:
+
+```bash
+make build
 ```
 
 ## Running
 
 ```bash
-gekka-metrics --config cluster.conf [--otlp http://otel-collector:4318]
+gekka-dashboard --config cluster.conf [--listen :9000] [--otlp http://otel-collector:4318]
 ```
 
 | Flag | Default | Description |
 |---|---|---|
 | `--config FILE` | *(required)* | Path to a HOCON cluster config |
-| `--otlp ENDPOINT` | *(empty -- local only)* | OTLP/HTTP endpoint to push metrics to |
+| `--listen ADDR` | `:9000` | Dashboard HTTP listen address |
+| `--otlp ENDPOINT` | *(empty)* | OTLP/HTTP endpoint for metrics export |
+| `--headless` | false | Disable UI, run as metrics-only exporter with notifications |
 
-**Minimal HOCON config:**
+Open `http://localhost:9000` in your browser after starting.
+
+## Headless Mode
+
+With `--headless`, the dashboard disables the web UI and runs as a metrics exporter
+with notification support — effectively replacing gekka-metrics.
+
+## Notifications
+
+Configure notification rules in your HOCON config:
 
 ```hocon
-pekko {
-  remote.artery.canonical {
-    hostname = "127.0.0.1"
-    port     = 2560
+gekka.notifications {
+  rules {
+    critical-down {
+      events = ["node.unreachable", "node.downed"]
+      roles = ["cart", "payment"]
+      channels = ["slack", "email"]
+      throttle = 5m
+    }
   }
-  cluster.seed-nodes = ["pekko://ClusterSystem@127.0.0.1:2552"]
+  channels {
+    slack { webhook-url = "https://hooks.slack.com/services/..." }
+    email {
+      smtp-host = "smtp.example.com"
+      smtp-port = 587
+      from = "alerts@example.com"
+      to = ["ops@example.com"]
+    }
+  }
 }
-
-gekka.telemetry.exporter.otlp {
-  endpoint = "http://otel-collector:4318"
-}
 ```
 
-The `metrics-exporter` role is injected automatically so sharding allocators
-and singleton managers exclude this node from hosting production workloads.
+## Development
 
-When no OTLP endpoint is configured the process still joins the cluster and
-displays a live TUI view of membership state.
+```bash
+# Start frontend dev server (hot reload)
+make dev
 
-**Log Verbosity:**
-Set `gekka.logging.level = "DEBUG"` in your HOCON configuration to enable
-detailed protocol tracing.
-
-## Integration with Prometheus / Grafana
-
-Use the OpenTelemetry Collector as the bridge:
-
-```yaml
-# otel-collector-config.yaml
-receivers:
-  otlp:
-    protocols:
-      http:
-        endpoint: "0.0.0.0:4318"
-
-exporters:
-  prometheus:
-    endpoint: "0.0.0.0:8889"
-  debug:
-    verbosity: basic
-
-service:
-  pipelines:
-    metrics:
-      receivers: [otlp]
-      exporters: [prometheus, debug]
+# In another terminal, run the Go backend
+go run . --config your-cluster.conf --listen :9000
 ```
-
-Then add the Prometheus scrape target:
-
-```yaml
-# prometheus.yml
-scrape_configs:
-  - job_name: gekka
-    static_configs:
-      - targets: ['otel-collector:8889']
-```
-
-## Key Metrics
-
-| Metric | Type | Unit | Attributes | Description |
-|---|---|---|---|---|
-| `gekka.cluster.members` | ObservableGauge | `{members}` | `status`, `dc` | Members grouped by status and data-center |
-
-**Attribute values for `status`:** `up`, `joining`, `leaving`, `exiting`, `down`, `weakly-up`, `removed`
 
 ## License
 
