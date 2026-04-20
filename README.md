@@ -31,6 +31,25 @@ gekka-dashboard --config cluster.conf [--listen :9000] [--otlp http://otel-colle
 | `--otlp ENDPOINT` | *(empty)* | OTLP/HTTP endpoint for metrics export |
 | `--headless` | false | Disable UI, run as metrics-only exporter with notifications |
 
+**Minimal HOCON config:**
+
+```hocon
+pekko {
+  remote.artery.canonical {
+    hostname = "127.0.0.1"
+    port     = 2560
+  }
+  cluster.seed-nodes = ["pekko://ClusterSystem@127.0.0.1:2552"]
+}
+
+gekka.telemetry.exporter.otlp {
+  endpoint = "http://otel-collector:4318"
+}
+```
+
+The `dashboard` role is injected automatically so sharding allocators
+and singleton managers exclude this node from hosting production workloads.
+
 Open `http://localhost:9000` in your browser after starting.
 
 ## Headless Mode
