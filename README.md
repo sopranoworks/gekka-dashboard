@@ -42,6 +42,10 @@ pekko {
   cluster.seed-nodes = ["pekko://ClusterSystem@127.0.0.1:2552"]
 }
 
+gekka.dashboard {
+  listen = ":9000"   # HTTP listen address (default ":9000")
+}
+
 gekka.telemetry.exporter.otlp {
   endpoint = "http://otel-collector:4318"
 }
