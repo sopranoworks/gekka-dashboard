@@ -19,6 +19,7 @@ import (
 
 	gekka "github.com/sopranoworks/gekka"
 	gcluster "github.com/sopranoworks/gekka/cluster"
+	config "github.com/sopranoworks/gekka-config"
 	gekkaotel "github.com/sopranoworks/gekka-extensions-telemetry-otel"
 	"github.com/sopranoworks/gekka-dashboard/notify"
 
@@ -34,7 +35,7 @@ import (
 func main() {
 	flagConfig := flag.String("config", "", "Path to HOCON application.conf (required)")
 	flagOtlp := flag.String("otlp", "", "OTLP/HTTP collector endpoint (overrides config)")
-	flagListen := flag.String("listen", ":9000", "Dashboard HTTP listen address")
+	flagListen := flag.String("listen", "", "Dashboard HTTP listen address (overrides config, default :9000)")
 	flagHeadless := flag.Bool("headless", false, "Disable UI, run as metrics-only exporter with notifications")
 	flagDisableManagement := flag.Bool("disable-management", false,
 		"Do not auto-enable the HTTP management API")
@@ -154,6 +155,9 @@ func main() {
 		slog.Info("notify: engine started", "rules", len(notifyCfg.Rules), "channels", len(channels))
 	}
 
+	// Resolve dashboard listen address: flag > config > default
+	listenAddr := resolveDashboardListen(*flagConfig, *flagListen)
+
 	// Start server or block
 	if *flagHeadless {
 		slog.Info("dashboard: running in headless mode (metrics + notifications only)")
@@ -161,8 +165,8 @@ func main() {
 	}
 
 	hub := NewHub()
-	slog.Info("dashboard: starting", "listen", *flagListen)
-	if err := startServer(*flagListen, hub); err != nil {
+	slog.Info("dashboard: starting", "listen", listenAddr)
+	if err := startServer(listenAddr, hub); err != nil {
 		slog.Error("dashboard: server failed", "err", err)
 		os.Exit(1)
 	}
@@ -185,6 +189,49 @@ func appendIfMissing(roles []string, role string) []string {
 // disable is true. Hostname and Port are set to gekka-dashboard defaults
 // (127.0.0.1:8559) whenever they hold their zero value OR the upstream
 // gekka.LoadConfig default (8558).
+// resolveDashboardListen determines the HTTP listen address using precedence:
+//  1. --listen flag (non-empty means explicitly set)
+//  2. gekka.dashboard.listen from HOCON config
+//  3. Default ":9000"
+func resolveDashboardListen(configPath, flagListen string) string {
+	const defaultListen = ":9000"
+
+	// 1. CLI flag wins
+	if flagListen != "" {
+		return flagListen
+	}
+
+	// 2. Try HOCON config
+	if configPath != "" {
+		if addr := readDashboardListenFromConfig(configPath); addr != "" {
+			return addr
+		}
+	}
+
+	// 3. Default
+	return defaultListen
+}
+
+func readDashboardListenFromConfig(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	c, err := config.ParseString(string(data))
+	if err != nil {
+		return ""
+	}
+	dashCfg, err := c.GetConfig("gekka.dashboard")
+	if err != nil {
+		return ""
+	}
+	listen, err := dashCfg.GetString("listen")
+	if err != nil || listen == "" {
+		return ""
+	}
+	return listen
+}
+
 func applyManagementDefaults(cfg *gekka.ClusterConfig, disable bool) {
 	if disable {
 		return
